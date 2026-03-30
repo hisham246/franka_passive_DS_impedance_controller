@@ -14,6 +14,6 @@ passive_DS_impedance_controller:
     angular_damping_eigenvalues: [5., 5., 5.]
     cartesian_stiffness_setpoint_ctrl: [500, 500, 500, 50, 50, 50]
     cartesian_stiffness_grav_comp: [0., 0., 0.01, 25., 25., 25.] 
-    cartesian_stiffness_mode: 1
+    cartesian_stiffness_mode: 0
     nullspace_stiffness: 0.25
     q_nullspace: [0.005264432735087578, -0.17525178575515743, 0.08762187454773385, -1.8310899806440901, 0.029428643955124744, 1.680440888034793, 0.9123517645864205]

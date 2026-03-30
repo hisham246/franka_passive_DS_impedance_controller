@@ -119,7 +119,8 @@ install(FILES franka_passive_ds_impedance_controller_plugin.xml
 )
 catkin_install_python(
   PROGRAMS scripts/interactive_marker.py 
-  scripts/move_to_start.py 
+  scripts/move_to_start.py
+  scripts/record_demos.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
