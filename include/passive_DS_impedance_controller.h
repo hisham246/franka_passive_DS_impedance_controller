@@ -68,7 +68,6 @@ public:
     void update(const Eigen::Vector3d& vel, const Eigen::Vector3d& des_vel);
     Eigen::Vector3d get_output();
 };
-///////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -151,14 +150,13 @@ class PassiveDSImpedanceController : public controller_interface::MultiInterface
   double              ang_damping_eigval0_;
   double              ang_damping_eigval1_;
  
-  // UNUSED SHOULD CLEAN UP!
   bool                bVelCommand;
   bool                bDebug;
   double              smooth_val_;
   double              rot_stiffness;
   double              rot_damping;
   Eigen::Matrix<double, 6, 1> default_cart_stiffness_target_;
-  int                 cartesian_stiffness_mode_; // 0: grav-comp, 1: setpoint-track (NOT USED ANYMORE)
+  int                 cartesian_stiffness_mode_; // 0: grav-comp, 1: setpoint-track
 
   // Instantiate DS controller class
   std::unique_ptr<PassiveDS> passive_ds_controller;
@@ -176,11 +174,11 @@ class PassiveDSImpedanceController : public controller_interface::MultiInterface
 
   franka_passive_ds_impedance_controller::passive_ds_paramConfig config_cfg;
 
-  // Desired twist subscriber (To take in desired DS velocity)
+  // Desired twist subscriber to take in desired EE velocity commands
   ros::Subscriber sub_desired_twist_;
   ros::Subscriber sub_desired_damping_;
   void desiredTwistCallback(const geometry_msgs::TwistConstPtr& msg);
-  void desiredDampingCallback(const std_msgs::Float32Ptr& msg); // In case damping values want to be changed!
+  void desiredDampingCallback(const std_msgs::Float32Ptr& msg);
 
 };
 
