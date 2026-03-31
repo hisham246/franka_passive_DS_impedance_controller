@@ -121,6 +121,7 @@ catkin_install_python(
   PROGRAMS scripts/interactive_marker.py 
   scripts/move_to_start.py
   scripts/record_demos.py
+  scripts/command_robot.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

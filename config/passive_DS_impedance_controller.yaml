@@ -10,7 +10,7 @@ passive_DS_impedance_controller:
         - panda_joint6
         - panda_joint7
 
-    linear_damping_eigenvalues:  [150, 150, 150]
+    linear_damping_eigenvalues:  [250, 50, 50]
     angular_damping_eigenvalues: [5., 5., 5.]
     cartesian_stiffness_setpoint_ctrl: [500, 500, 500, 50, 50, 50]
     cartesian_stiffness_grav_comp: [0., 0., 0.01, 25., 25., 25.] 

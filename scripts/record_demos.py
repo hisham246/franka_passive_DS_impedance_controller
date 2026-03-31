@@ -1,19 +1,17 @@
 import rospy
 import numpy as np
-from geometry_msgs.msg import Pose
-from franka_msgs.msg import FrankaState, WrenchStamped
-from sensor_msgs.msg import JointState
+from franka_msgs.msg import FrankaState
 from datetime import datetime
 import os
 import threading
 
 class PoseRecorder:
     def __init__(self):
-        rospy.init_node('pose_recorder', anonymous=True)
+        rospy.init_node('record_demos', anonymous=True)
         
-        # Hard-coded parameters (adjust as you like)
+        # Hard-coded parameters
         self.output_dir = "/home/hisham246/uwaterloo/panda_ws/src/franka_passive_ds_impedance_controller/robot_demos"
-        self.output_filename = "free_space"
+        self.output_filename = "contact"
         self.buffer_size = 10000  # Number of samples to buffer
         
         # Create output directory if it doesn't exist
@@ -37,28 +35,17 @@ class PoseRecorder:
         self.sample_count = 0
         self.start_time = None
 
-        # Latest Franka state fields we care about
-        self.latest_O_dP_EE_d = None  # 6D desired twist
-        self.latest_O_dP_EE_c = None  # 6D commanded twist
-        self.latest_external_forces = None  # External forces on the EE
+        # Latest Franka state field we care about
+        self.latest_O_T_EE = None  # 4x4 EE Pose (flattened to 16 elements)
         
         # Initialize CSV file with header
         self._initialize_file()
         
-        # Subscribe to FrankaState for O_dP_EE_d / O_dP_EE_c
+        # Subscribe to FrankaState for O_T_EE
         self.state_sub = rospy.Subscriber(
-            '/franka_state_controller/franka_states',  # adjust topic name if needed
+            '/franka_state_controller/franka_states',
             FrankaState,
             self.state_callback,
-            queue_size=1000,
-            tcp_nodelay=True
-        )
-        
-        # Subscribe to external forces (F_ext) topic (wrench: force and torque)
-        self.force_sub = rospy.Subscriber(
-            '/franka_state_controller/F_ext',  # External forces topic
-            WrenchStamped,
-            self.force_callback,
             queue_size=1000,
             tcp_nodelay=True
         )
@@ -67,90 +54,44 @@ class PoseRecorder:
         self.write_thread = threading.Thread(target=self._write_loop)
         self.write_thread.daemon = True
         self.write_thread.start()
-        
+
     def _initialize_file(self):
         """Initialize CSV file with header."""
         with open(self.filepath, 'w') as f:
             # Time
             header = "ros_time_sec,ros_time_nsec,"
-            # O_dP_EE_d (desired EE twist)
-            header += "O_dP_EE_d_vx,O_dP_EE_d_vy,O_dP_EE_d_vz,"
-            header += "O_dP_EE_d_wx,O_dP_EE_d_wy,O_dP_EE_d_wz,"
-            # O_dP_EE_c (commanded EE twist)
-            header += "O_dP_EE_c_vx,O_dP_EE_c_vy,O_dP_EE_c_vz,"
-            header += "O_dP_EE_c_wx,O_dP_EE_c_wy,O_dP_EE_c_wz,"
-            # External forces (F_ext) - Force and Torque (Wrench)
-            header += "F_ext_x,F_ext_y,F_ext_z,F_ext_wx,F_ext_wy,F_ext_wz\n"
+            # O_T_EE (16 elements of the 4x4 transform matrix, column-major)
+            # Elements 12, 13, 14 represent the x, y, z translation.
+            header += ",".join([f"O_T_EE_{i}" for i in range(16)]) + "\n"
             f.write(header)
 
     def state_callback(self, msg):
-        """Callback for FrankaState messages, store latest twists."""
-        # These are float64[6] arrays in FrankaState
-        self.latest_O_dP_EE_d = np.array(msg.O_dP_EE_d, dtype=float)
-        self.latest_O_dP_EE_c = np.array(msg.O_dP_EE_c, dtype=float)
+        """Callback for FrankaState messages, store latest pose and trigger logging."""
+        # O_T_EE is a float64[16] array in column-major order
+        self.latest_O_T_EE = np.array(msg.O_T_EE, dtype=float)
+        
+        # Trigger recording immediately so we actually log data!
+        self.record_data()
 
-    def force_callback(self, msg):
-        """Callback for external forces (wrench) messages, store the latest external forces."""
-        # Extract force and torque components from the wrench message
-        self.latest_external_forces = np.array([
-            msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z,
-            msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z
-        ], dtype=float)
-
-    def pose_callback(self, msg):
-        """High-frequency callback for pose messages (primary trigger for logging)."""
+    def record_data(self):
+        """High-frequency logging method called by state_callback."""
         if not self.recording:
             return
         
-        # Get system time for accurate timestamping
         now = rospy.Time.now()
         
         if self.start_time is None:
             self.start_time = now
 
-        # Use latest FrankaState if available, otherwise NaNs
-        if self.latest_O_dP_EE_d is not None:
-            O_dP_EE_d = self.latest_O_dP_EE_d
+        # Use latest pose if available, otherwise NaNs
+        if self.latest_O_T_EE is not None:
+            O_T_EE = self.latest_O_T_EE
         else:
-            O_dP_EE_d = np.full(6, np.nan)
-
-        if self.latest_O_dP_EE_c is not None:
-            O_dP_EE_c = self.latest_O_dP_EE_c
-        else:
-            O_dP_EE_c = np.full(6, np.nan)
-        
-        # Use latest external forces if available, otherwise NaNs
-        if self.latest_external_forces is not None:
-            F_ext = self.latest_external_forces
-        else:
-            F_ext = np.full(6, np.nan)
+            O_T_EE = np.full(16, np.nan)
 
         # Extract data row
-        data_row = [
-            float(now.secs),
-            float(now.nsecs),
-            # desired twist
-            float(O_dP_EE_d[0]),
-            float(O_dP_EE_d[1]),
-            float(O_dP_EE_d[2]),
-            float(O_dP_EE_d[3]),
-            float(O_dP_EE_d[4]),
-            float(O_dP_EE_d[5]),
-            # commanded twist
-            float(O_dP_EE_c[0]),
-            float(O_dP_EE_c[1]),
-            float(O_dP_EE_c[2]),
-            float(O_dP_EE_c[3]),
-            float(O_dP_EE_c[4]),
-            float(O_dP_EE_c[5]),
-            # External forces (wrench)
-            float(F_ext[0]),
-            float(F_ext[1]),
-            float(F_ext[2]),
-            float(F_ext[3]),
-            float(F_ext[4]),
-            float(F_ext[5]),
-        ]
+        data_row = [float(now.secs), float(now.nsecs)]
+        data_row.extend(O_T_EE.tolist())
         
         # Add to buffer (thread-safe)
         with self.buffer_lock:
@@ -214,7 +155,6 @@ class PoseRecorder:
         """Main run loop."""
         rospy.on_shutdown(self.stop_recording)
         rospy.spin()
-
 
 if __name__ == '__main__':
     try:
