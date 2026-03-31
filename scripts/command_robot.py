@@ -21,7 +21,7 @@ class PlaybackAndRecord:
 
         # --- Recording Setup ---
         self.output_dir = "/home/hisham246/uwaterloo/panda_ws/src/franka_passive_ds_impedance_controller/robot_demos"
-        self.output_filename = "free_space_execution_tracking"
+        self.output_filename = "disturbance_execution_tracking"
         self.buffer_size = 5000
         
         if not os.path.exists(self.output_dir):
@@ -191,7 +191,7 @@ class PlaybackAndRecord:
 
 
 if __name__ == '__main__':
-    CSV_FILE = "/home/hisham246/uwaterloo/panda_ws/src/franka_passive_ds_impedance_controller/robot_demos/free_space/free_space_pose_20260330_162810.csv"
+    CSV_FILE = "/home/hisham246/uwaterloo/panda_ws/src/franka_passive_ds_impedance_controller/robot_demos/free_space/free_space.csv"
     
     try:
         executor = PlaybackAndRecord(CSV_FILE)
